@@ -6,10 +6,18 @@ Static one-page proposal site, hosted on GitHub Pages.
 
 ## How it is published
 
-`.github/workflows/pages.yml` builds and deploys the site on every push to
-`claude/mirage-kendu-repo-setup-ac3l2b`. It turns Pages on itself
-(`configure-pages` with `enablement: true`) and sets the source to *GitHub
-Actions*, so the first push is enough to bring the site up.
+Pages has to be switched on once by a repo admin under **Settings → Pages**;
+the workflow token is not permitted to create the Pages site. Either source
+works, because the site files sit at the root of this branch:
+
+- *GitHub Actions* — `.github/workflows/pages.yml` then builds and deploys on
+  every push to `claude/mirage-kendu-repo-setup-ac3l2b`.
+- *Deploy from a branch* — pick this branch and `/ (root)`; Pages serves the
+  files directly and the workflow skips its deploy steps.
+
+Until Pages is enabled the workflow still runs green: it checks how Pages is
+configured and, if there is nothing to deploy to, says so in the run summary
+instead of failing.
 
 ## Contents
 
