@@ -23,7 +23,7 @@ jobs:
       - name: Stage the site
         run: |
           mkdir -p _site
-          cp index.html run-video.mp4 .nojekyll _site/
+          cp index.html run-video.mp4 og-image.jpg .nojekyll _site/
 
       # This is the step that actually serves the site: Pages is set to
       # "Deploy from a branch" on gh-pages, and this rebuilds that branch from
