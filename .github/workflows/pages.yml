@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -17,44 +17,43 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # The workflow token is not allowed to create the Pages site, so a repo
-      # admin turns Pages on once under Settings > Pages. Until the source is
-      # set to "GitHub Actions" there is nothing for this job to deploy to, so
-      # it reports what to do and skips the deploy rather than failing.
-      - name: Check how Pages is configured
-        id: check
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          build_type=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type 2>/dev/null || echo none)
-          echo "build_type=$build_type" >> "$GITHUB_OUTPUT"
-          case "$build_type" in
-            workflow)
-              echo "Pages source is GitHub Actions - deploying." >> "$GITHUB_STEP_SUMMARY" ;;
-            legacy)
-              echo "Pages serves a branch directly, so this workflow has nothing to do." >> "$GITHUB_STEP_SUMMARY" ;;
-            *)
-              echo "Pages is not enabled. Enable it under Settings > Pages (source: GitHub Actions), then re-run this workflow." >> "$GITHUB_STEP_SUMMARY" ;;
-          esac
-
-      - if: steps.check.outputs.build_type == 'workflow'
-        name: Stage the site
+      - name: Stage the site
         run: |
           mkdir -p _site
           cp index.html run-video.mp4 .nojekyll _site/
 
-      - if: steps.check.outputs.build_type == 'workflow'
-        uses: actions/configure-pages@v5
+      # Publishing to gh-pages is what brings the site up: the workflow token
+      # is not allowed to create a Pages site through the Pages API, but
+      # GitHub enables Pages for the repo by itself once a gh-pages branch
+      # exists. The branch is rebuilt from scratch each run so its history
+      # does not grow with copies of the video.
+      - name: Publish to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd _site
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA} to GitHub Pages"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            gh-pages
+          echo "Pushed the site to gh-pages." >> "$GITHUB_STEP_SUMMARY"
 
-      - if: steps.check.outputs.build_type == 'workflow'
-        uses: actions/upload-pages-artifact@v3
-
-      - if: steps.check.outputs.build_type == 'workflow'
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Report the Pages state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null || echo none)
+          if [ "$url" = none ]; then
+            echo "Pages is not reporting a site yet. If it does not appear shortly, set Settings > Pages source to 'Deploy from a branch' -> gh-pages / (root)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"
+          fi
