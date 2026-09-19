@@ -47,13 +47,28 @@ jobs:
             gh-pages
           echo "Pushed the site to gh-pages." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Enable Pages if it is not on yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/pages" >/dev/null 2>&1; then
+            echo "Pages is already enabled."
+          else
+            echo "--- trying build_type=legacy on gh-pages ---"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/pages" \
+              -f 'build_type=legacy' -f 'source[branch]=gh-pages' -f 'source[path]=/' || true
+            echo "--- trying build_type=workflow ---"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/pages" \
+              -f 'build_type=workflow' || true
+          fi
+
       - name: Report the Pages state
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null || echo none)
           if [ "$url" = none ]; then
-            echo "Pages is not reporting a site yet. If it does not appear shortly, set Settings > Pages source to 'Deploy from a branch' -> gh-pages / (root)." >> "$GITHUB_STEP_SUMMARY"
+            echo "NOT ENABLED. Set Settings > Pages source to 'Deploy from a branch' -> gh-pages / (root)." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"
           fi
