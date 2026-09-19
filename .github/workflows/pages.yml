@@ -19,19 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Stage the site
         run: |
           mkdir -p _site
           cp index.html run-video.mp4 .nojekyll _site/
 
-      # Publishing to gh-pages is what brings the site up: the workflow token
-      # is not allowed to create a Pages site through the Pages API, but
-      # GitHub enables Pages for the repo by itself once a gh-pages branch
-      # exists. The branch is rebuilt from scratch each run so its history
-      # does not grow with copies of the video.
+      # This is the step that actually serves the site: Pages is set to
+      # "Deploy from a branch" on gh-pages, and this rebuilds that branch from
+      # scratch each run so its history does not fill up with copies of the
+      # video.
       - name: Publish to gh-pages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,19 +44,29 @@ jobs:
             gh-pages
           echo "Pushed the site to gh-pages." >> "$GITHUB_STEP_SUMMARY"
 
+      # Creating a Pages site for the first time is refused for the Actions
+      # token ("Resource not accessible by integration"), so it is a one-time
+      # manual step unless a PAT with the Pages scope is stored as the
+      # PAGES_TOKEN secret, in which case this turns Pages on by itself.
       - name: Enable Pages if it is not on yet
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PAGES_TOKEN || github.token }}
         run: |
           if gh api "repos/$GITHUB_REPOSITORY/pages" >/dev/null 2>&1; then
             echo "Pages is already enabled."
+          elif gh api -X POST "repos/$GITHUB_REPOSITORY/pages" \
+                 -f 'build_type=legacy' \
+                 -f 'source[branch]=gh-pages' -f 'source[path]=/'; then
+            echo "Enabled Pages on gh-pages." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "--- trying build_type=legacy on gh-pages ---"
-            gh api -X POST "repos/$GITHUB_REPOSITORY/pages" \
-              -f 'build_type=legacy' -f 'source[branch]=gh-pages' -f 'source[path]=/' || true
-            echo "--- trying build_type=workflow ---"
-            gh api -X POST "repos/$GITHUB_REPOSITORY/pages" \
-              -f 'build_type=workflow' || true
+            {
+              echo "### Pages is not enabled yet"
+              echo
+              echo "The Actions token is not allowed to create a Pages site."
+              echo "Open **Settings → Pages**, set the source to"
+              echo "**Deploy from a branch → \`gh-pages\` / (root)**, and the"
+              echo "site goes live. Every later push deploys automatically."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Report the Pages state
@@ -67,8 +74,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null || echo none)
-          if [ "$url" = none ]; then
-            echo "NOT ENABLED. Set Settings > Pages source to 'Deploy from a branch' -> gh-pages / (root)." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          [ "$url" = none ] || echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"

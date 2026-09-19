@@ -6,18 +6,20 @@ Static one-page proposal site, hosted on GitHub Pages.
 
 ## How it is published
 
-Pages has to be switched on once by a repo admin under **Settings → Pages**;
-the workflow token is not permitted to create the Pages site. Either source
-works, because the site files sit at the root of this branch:
+`.github/workflows/pages.yml` runs on every push to
+`claude/mirage-kendu-repo-setup-ac3l2b`. It stages `index.html`, the video and
+`.nojekyll`, then force-pushes them to the `gh-pages` branch, which is what
+GitHub Pages serves.
 
-- *GitHub Actions* — `.github/workflows/pages.yml` then builds and deploys on
-  every push to `claude/mirage-kendu-repo-setup-ac3l2b`.
-- *Deploy from a branch* — pick this branch and `/ (root)`; Pages serves the
-  files directly and the workflow skips its deploy steps.
+**One manual step is needed once.** Creating a Pages site for the first time is
+refused for the Actions token (`Resource not accessible by integration`), so
+open **Settings → Pages** and set the source to **Deploy from a branch →
+`gh-pages` / (root)**. After that every push deploys with no further
+intervention.
 
-Until Pages is enabled the workflow still runs green: it checks how Pages is
-configured and, if there is nothing to deploy to, says so in the run summary
-instead of failing.
+To remove even that step on a fresh repo, store a personal access token with
+the `pages` scope as the `PAGES_TOKEN` secret; the workflow then enables Pages
+on its own.
 
 ## Contents
 
